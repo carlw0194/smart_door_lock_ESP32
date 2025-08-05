@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-list"></i> Access Logs</h2>
+    <div>
+        <button class="btn btn-outline-primary" onclick="refreshLogs()">
+            <i class="fas fa-refresh"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Employee ID</th>
+                        <th>Method</th>
+                        <th>Status</th>
+                        <th>Door State</th>
+                        <th>IP Address</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs.items %}
+                    <tr class="{% if not log.access_granted %}table-warning{% endif %}">
+                        <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            {% if log.user_id %}
+                                {{ log.user.name }}
+                            {% else %}
+                                <span class="text-muted">Unknown User</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.user_id %}
+                                {{ log.user.employee_id }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <i class="fas fa-{% if log.access_method == 'rfid' %}id-card{% else %}fingerprint{% endif %}"></i>
+                            {{ log.access_method.title() }}
+                        </td>
+                        <td>
+                            {% if log.access_granted %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check"></i> Granted
+                                </span>
+                            {% else %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-times"></i> Denied
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.door_state == 'open' %}
+                                <i class="fas fa-door-open text-warning"></i> Open
+                            {% else %}
+                                <i class="fas fa-door-closed text-success"></i> Closed
+                            {% endif %}
+                        </td>
+                        <td>{{ log.ip_address or '-' }}</td>
+                        <td>
+                            {% if log.access_method == 'rfid' and log.rfid_uid %}
+                                RFID: {{ log.rfid_uid }}
+                            {% elif log.access_method == 'fingerprint' and log.fingerprint_id %}
+                                FP ID: {{ log.fingerprint_id }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if logs.pages > 1 %}
+        <nav aria-label="Access logs pagination">
+            <ul class="pagination justify-content-center">
+                {% if logs.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('access_logs', page=logs.prev_num) }}">Previous</a>
+                    </li>
+                {% endif %}
+                
+                {% for page_num in logs.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num != logs.page %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('access_logs', page=page_num) }}">{{ page_num }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if logs.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('access_logs', page=logs.next_num) }}">Next</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function refreshLogs() {
+    location.reload();
+}
+
+// Auto-refresh every 30 seconds
+setInterval(refreshLogs, 30000);
+</script>
+{% endblock %}

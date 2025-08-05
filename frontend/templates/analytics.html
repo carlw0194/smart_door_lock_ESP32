@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-chart-line"></i> Security Analytics</h2>
+    <form method="POST" action="{{ url_for('train_ml_models') }}" style="display: inline;">
+        <button type="submit" class="btn btn-primary" onclick="return confirm('This will retrain ML models with current data. Continue?')">
+            <i class="fas fa-brain"></i> Retrain ML Models
+        </button>
+    </form>
+</div>
+
+<!-- Security Insights Overview -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <h4>{{ insights.anomalies_detected or 0 }}</h4>
+                <p class="mb-0">Anomalies Detected</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-shield-alt fa-2x mb-2"></i>
+                <h4>{{ insights.total_access_attempts or 0 }}</h4>
+                <p class="mb-0">Access Attempts</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-times-circle fa-2x mb-2"></i>
+                <h4>{{ insights.failed_attempts or 0 }}</h4>
+                <p class="mb-0">Failed Attempts</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-clock fa-2x mb-2"></i>
+                <h4>{{ insights.peak_hours|length }}</h4>
+                <p class="mb-0">Peak Hours</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Security Alerts -->
+{% if insights.security_alerts %}
+<div class="card mb-4">
+    <div class="card-header bg-danger text-white">
+        <h5><i class="fas fa-exclamation-triangle"></i> Security Alerts (Last 7 Days)</h5>
+    </div>
+    <div class="card-body">
+        {% for alert in insights.security_alerts %}
+        <div class="alert alert-warning" role="alert">
+            <strong>{{ alert.timestamp[:19] }}</strong> - 
+            {{ alert.reason }}
+            <span class="badge bg-danger ms-2">Confidence: {{ "%.2f"|format(alert.confidence) }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Access Patterns -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-clock"></i> Peak Access Hours</h5>
+            </div>
+            <div class="card-body">
+                {% if insights.peak_hours %}
+                    {% for hour in insights.peak_hours %}
+                    <span class="badge bg-primary me-2">{{ hour }}:00</span>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users"></i> Most Active Users</h5>
+            </div>
+            <div class="card-body">
+                {% if insights.most_active_users %}
+                    {% for user in insights.most_active_users %}
+                    <div class="d-flex justify-content-between">
+                        <span>{{ user.name }}</span>
+                        <span class="badge bg-info">{{ user.attempts }} attempts</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Behavior Analysis -->
+{% if user_analysis %}
+<div class="card">
+    <div class="card-header">
+        <h5><i class="fas fa-user-chart"></i> User Behavior Analysis</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Total Attempts</th>
+                        <th>Success Rate</th>
+                        <th>Common Hours</th>
+                        <th>Anomalies</th>
+                        <th>Risk Level</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for analysis in user_analysis %}
+                    <tr>
+                        <td>{{ analysis.user_name }}</td>
+                        <td>{{ analysis.total_attempts }}</td>
+                        <td>
+                            <span class="badge {% if analysis.success_rate > 90 %}bg-success{% elif analysis.success_rate > 70 %}bg-warning{% else %}bg-danger{% endif %}">
+                                {{ analysis.success_rate }}%
+                            </span>
+                        </td>
+                        <td>
+                            {% for hour in analysis.common_hours %}
+                            <span class="badge bg-secondary me-1">{{ hour }}:00</span>
+                            {% endfor %}
+                        </td>
+                        <td>{{ analysis.anomalies_detected }}</td>
+                        <td>
+                            {% set risk_level = 'low' %}
+                            {% if analysis.anomaly_rate > 20 %}
+                                {% set risk_level = 'high' %}
+                            {% elif analysis.anomaly_rate > 10 %}
+                                {% set risk_level = 'medium' %}
+                            {% endif %}
+                            <span class="badge {% if risk_level == 'high' %}bg-danger{% elif risk_level == 'medium' %}bg-warning{% else %}bg-success{% endif %}">
+                                {{ risk_level.title() }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+// Auto-refresh analytics every 30 seconds
+setInterval(function() {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

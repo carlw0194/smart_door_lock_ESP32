@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-user-plus"></i> Add New User</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="employee_id" class="form-label">Employee ID</label>
+                        <input type="text" class="form-control" id="employee_id" name="employee_id" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="access_level" class="form-label">Access Level</label>
+                        <select class="form-control" id="access_level" name="access_level" required>
+                            <option value="basic">Basic</option>
+                            <option value="admin">Admin</option>
+                            <option value="guest">Guest</option>
+                        </select>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Add User</button>
+                        <a href="{{ url_for('users') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+                <div class="mt-4 p-3 bg-light rounded">
+                    <h6><i class="fas fa-info-circle"></i> Next Steps:</h6>
+                    <p class="mb-0 small">After adding the user, you'll need to register their RFID card and/or fingerprint using the ESP32 system.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-shield-alt"></i> Security Events</h2>
+    <button class="btn btn-outline-primary" onclick="refreshEvents()">
+        <i class="fas fa-refresh"></i> Refresh
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Event Type</th>
+                        <th>IP Address</th>
+                        <th>Details</th>
+                        <th>User Agent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events.items %}
+                    <tr class="{% if event.event_type in ['failed_login', 'api_access_denied', 'account_locked'] %}table-warning{% elif event.event_type in ['access_denied'] %}table-danger{% endif %}">
+                        <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            {% if event.event_type == 'failed_login' %}
+                                <span class="badge bg-warning">
+                                    <i class="fas fa-exclamation-triangle"></i> Failed Login
+                                </span>
+                            {% elif event.event_type == 'successful_login' %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check"></i> Successful Login
+                                </span>
+                            {% elif event.event_type == 'api_access_denied' %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-ban"></i> API Access Denied
+                                </span>
+                            {% elif event.event_type == 'access_denied' %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-door-closed"></i> Access Denied
+                                </span>
+                            {% elif event.event_type == 'account_locked' %}
+                                <span class="badge bg-warning">
+                                    <i class="fas fa-lock"></i> Account Locked
+                                </span>
+                            {% elif event.event_type == 'api_key_created' %}
+                                <span class="badge bg-info">
+                                    <i class="fas fa-key"></i> API Key Created
+                                </span>
+                            {% elif event.event_type == 'api_key_revoked' %}
+                                <span class="badge bg-secondary">
+                                    <i class="fas fa-key"></i> API Key Revoked
+                                </span>
+                            {% else %}
+                                <span class="badge bg-light text-dark">{{ event.event_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ event.ip_address or '-' }}</td>
+                        <td>{{ event.details or '-' }}</td>
+                        <td>
+                            {% if event.user_agent %}
+                                <span class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ event.user_agent }}">
+                                    {{ event.user_agent }}
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if events.pages > 1 %}
+        <nav aria-label="Security events pagination">
+            <ul class="pagination justify-content-center">
+                {% if events.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('security_events', page=events.prev_num) }}">Previous</a>
+                    </li>
+                {% endif %}
+                
+                {% for page_num in events.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num != events.page %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('security_events', page=page_num) }}">{{ page_num }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if events.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('security_events', page=events.next_num) }}">Next</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function refreshEvents() {
+    location.reload();
+}
+
+// Auto-refresh every 60 seconds
+setInterval(refreshEvents, 60000);
+</script>
+{% endblock %}
