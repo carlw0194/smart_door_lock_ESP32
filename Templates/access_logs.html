@@ -1,0 +1,17 @@
+{% for page_num in logs.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+    {% if page_num %}
+        {% if page_num != logs.page %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('access_logs', page=page_num) }}">{{ page_num }}</a>
+            </li>
+        {% else %}
+            <li class="page-item active">
+                <span class="page-link">{{ page_num }}</span>
+            </li>
+        {% endif %}
+    {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">...</span>
+        </li>
+    {% endif %}
+{% endfor %}
