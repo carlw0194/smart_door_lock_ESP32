@@ -2,9 +2,10 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, date
 import secrets
 import json
+from sqlalchemy.sql import func
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
@@ -163,6 +164,31 @@ def dashboard():
 def users():
     all_users = User.query.order_by(User.created_at.desc()).all()
     return render_template('users.html', users=all_users)
+
+@app.route('/active-users')
+@login_required
+def active_users():
+    # Active users logic: users who accessed today (or recently) or have is_active flag
+    # Adjust criteria depending on your model fields
+    today = date.today()
+    active_user_ids = db.session.query(AccessLog.user_id).filter(func.date(AccessLog.timestamp) == today).distinct()
+    active_users = User.query.filter(User.id.in_(active_user_ids)).all()
+    return render_template('active_users.html', users=active_users)
+
+@app.route('/today-access')
+@login_required
+def today_access():
+    # Logs of all access attempts today
+    today = date.today()
+    todays_logs = AccessLog.query.filter(func.date(AccessLog.timestamp) == today).all()
+    return render_template('today_access.html', logs=todays_logs)
+
+@app.route('/granted-access')
+@login_required
+def granted_access():
+    # All logs where access was granted
+    granted_logs = AccessLog.query.filter_by(access_granted='Granted').all()
+    return render_template('granted_access.html', logs=granted_logs)
 
 @app.route('/add_user', methods=['GET', 'POST'])
 @login_required

@@ -25,7 +25,7 @@
                     <div class="mb-3">
                         <label for="access_level" class="form-label">Access Level</label>
                         <select class="form-control" id="access_level" name="access_level" required>
-                            <option value="basic" {% if user.access_level == 'basic' %}selected{% endif %}>Basic</option>
+                            <option value="basic" {% if user.access_level == 'basic' %}selected{% endif %}>Employee</option>
                             <option value="admin" {% if user.access_level == 'admin' %}selected{% endif %}>Admin</option>
                             <option value="guest" {% if user.access_level == 'guest' %}selected{% endif %}>Guest</option>
                         </select>

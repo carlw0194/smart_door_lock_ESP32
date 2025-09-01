@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Today's Access Logs</h2>
+<ul>
+  {% for log in logs %}
+    <li>User ID: {{ log.user_id }} | Time: {{ log.timestamp }} | Status: {{ log.access_granted }}</li>
+  {% else %}
+    <li>No access logs for today.</li>
+  {% endfor %}
+</ul>
+<style>
+.btn-custom {
+    background-color: blue;
+    color: white;
+    padding: 10px 20px;
+    text-decoration: none;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+.btn-custom:hover {
+    background-color: darkblue;
+}
+</style>
+
+<a href="{{ url_for('dashboard') }}" class="btn-custom">Back to Dashboard</a>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Active Users</h2>
+<ul>
+  {% for user in users %}
+    <li>{{ user.username }} (ID: {{ user.id }})</li>
+  {% else %}
+    <li>No active users found today.</li>
+  {% endfor %}
+</ul>
+
+<style>
+.btn-custom {
+    background-color: blue;
+    color: white;
+    padding: 10px 20px;
+    text-decoration: none;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+.btn-custom:hover {
+    background-color: darkblue;
+}
+</style>
+
+<a href="{{ url_for('dashboard') }}" class="btn-custom">Back to Dashboard</a>
+
+{% endblock %}

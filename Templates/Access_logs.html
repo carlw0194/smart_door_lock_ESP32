@@ -1,17 +1,66 @@
-{% for page_num in logs.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
-    {% if page_num %}
-        {% if page_num != logs.page %}
-            <li class="page-item">
-                <a class="page-link" href="{{ url_for('access_logs', page=page_num) }}">{{ page_num }}</a>
-            </li>
-        {% else %}
-            <li class="page-item active">
-                <span class="page-link">{{ page_num }}</span>
-            </li>
-        {% endif %}
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container mt-4">
+    <h2 class="mb-4">Access Logs</h2>
+
+    {% if logs.items %} 
+        <table class="table table-dark table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>User</th>
+                    <th>Method</th>
+                    <th>Granted</th>
+                    <th>Timestamp</th>
+                    <th>Door State</th>
+                    <th>IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs.items %}
+                <tr>
+                    <td>{{ log.id }}</td>
+                    <td>
+                        {% if log.user_id %}
+                            {{ log.user.name }}
+                        {% else %}
+                            Unknown
+                        {% endif %}
+                    </td>
+                    <td>{{ log.access_method }}</td>
+                    <td>{{ 'Yes' if log.access_granted else 'No' }}</td>
+                    <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ log.door_state }}</td>
+                    <td>{{ log.ip_address }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     {% else %}
-        <li class="page-item disabled">
-            <span class="page-link">...</span>
-        </li>
+        <p class="text-muted">No logs available.</p>
     {% endif %}
-{% endfor %}
+
+    <!-- Pagination -->
+    <nav aria-label="Page navigation">
+        <ul class="pagination justify-content-center">
+            {% for page_num in logs.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+                {% if page_num %}
+                    {% if page_num != logs.page %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('access_logs', page=page_num) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                    {% endif %}
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+    </nav>
+</div>
+
+{% endblock %}
