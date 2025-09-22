@@ -1,31 +1,12 @@
-@app.route('/api/register_rfid', methods=['POST'])
-def register_rfid():
-    data = request.get_json()
-    user_id = data.get('user_id')
-    rfid_uid = data.get('rfid_uid')
-    if not user_id or not rfid_uid:
-        return jsonify({'status': 'error', 'message': 'Missing user_id or rfid_uid'}), 400
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'status': 'error', 'message': 'User not found'}), 404
-    user.rfid_uid = rfid_uid
-    db.session.commit()
-    return jsonify({'status': 'success', 'message': 'RFID registered'})
 
-@app.route('/api/register_fingerprint', methods=['POST'])
-def register_fingerprint():
-    data = request.get_json()
-    user_id = data.get('user_id')
-    fingerprint_id = data.get('fingerprint_id')
-    if not user_id or fingerprint_id is None:
-        return jsonify({'status': 'error', 'message': 'Missing user_id or fingerprint_id'}), 400
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'status': 'error', 'message': 'User not found'}), 404
-    user.fingerprint_id = fingerprint_id
-    db.session.commit()
-    return jsonify({'status': 'success', 'message': 'Fingerprint registered'})
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+# ...existing code...
+
+# Place this after all Flask setup and before main routes
+
+
+
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -34,15 +15,51 @@ import secrets
 import json
 from sqlalchemy.sql import func
 
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///door_access.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+@app.route('/start_registration/<int:user_id>', methods=['POST'])
+def start_registration_web(user_id):
+    import requests
+    backend_url = 'http://127.0.0.1:5000/api/start_registration'  # Change to your backend IP if needed
+    requests.post(backend_url, json={'user_id': user_id})
+    flash(f'Registration mode started for user {user_id}')
+    return redirect(url_for('users'))
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# Registration state (in-memory, for demo; use DB for production)
+registration_state = {'active': False, 'user_id': None}
+
+# Endpoint for web app to trigger registration for a user
+@app.route('/api/start_registration', methods=['POST'])
+def start_registration():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'status': 'error', 'message': 'Missing user_id'}), 400
+    registration_state['active'] = True
+    registration_state['user_id'] = user_id
+    return jsonify({'status': 'success', 'message': 'Registration started', 'user_id': user_id})
+
+# Endpoint for ESP32 to poll registration state
+@app.route('/api/poll_registration', methods=['GET'])
+def poll_registration():
+    if registration_state['active'] and registration_state['user_id']:
+        return jsonify({'register': True, 'user_id': registration_state['user_id']})
+    return jsonify({'register': False})
+
+# Endpoint for ESP32 to clear registration state after use
+@app.route('/api/clear_registration', methods=['POST'])
+def clear_registration():
+    registration_state['active'] = False
+    registration_state['user_id'] = None
+    return jsonify({'status': 'success'})
+
 
 # Database Models
 class Admin(UserMixin, db.Model):
@@ -300,37 +317,40 @@ def access_logs():
 # API Endpoints for ESP32
 @app.route('/api/check_access', methods=['POST'])
 def check_access():
-    """API endpoint for ESP32 to check if access should be granted"""
+    """API endpoint for ESP32 to check if access should be granted
+    Note: This endpoint forwards the request to MQTT for consistency"""
     try:
         data = request.get_json()
-        access_method = data.get('method')  # 'rfid' or 'fingerprint'
-        rfid_uid = data.get('rfid_uid')
-        fingerprint_id = data.get('fingerprint_id')
         
-        user = None
-        access_granted = False
-        
-        if access_method == 'rfid' and rfid_uid:
-            user = User.query.filter_by(rfid_uid=rfid_uid, is_active=True).first()
-        elif access_method == 'fingerprint' and fingerprint_id:
-            user = User.query.filter_by(fingerprint_id=fingerprint_id, is_active=True).first()
-        
-        if user:
-            access_granted = True
-            user.last_access = datetime.utcnow()
-            db.session.commit()
-        
-        # Log the access attempt
-        log_entry = AccessLog(
-            user_id=user.id if user else None,
-            access_method=access_method,
-            access_granted=access_granted,
-            rfid_uid=rfid_uid,
-            fingerprint_id=fingerprint_id,
-            ip_address=request.remote_addr,
-            door_state="open" if access_granted else "closed"
-        )
-        # Add logic here if you need to log the door state update
+        # Add device_id if not present
+        if 'device_id' not in data:
+            data['device_id'] = request.remote_addr
+            
+        # Forward request to MQTT handler
+        mqtt_handler = current_app.mqtt_handler
+        if mqtt_handler:
+            # Process request through MQTT handler
+            mqtt_handler.handle_access_request(data)
+            
+            # Return immediate response for HTTP request
+            return jsonify({
+                'status': 'success',
+                'message': 'Access request processed via MQTT',
+                'timestamp': datetime.utcnow().isoformat()
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'MQTT handler not available',
+                'timestamp': datetime.utcnow().isoformat()
+            }), 503
+    except Exception as e:
+        app.logger.error(f"Error in check_access: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 500
         # For now, this line is removed as log_entry is not defined
         db.session.add(log_entry)
         db.session.commit()
