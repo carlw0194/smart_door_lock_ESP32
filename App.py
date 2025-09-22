@@ -1,3 +1,30 @@
+@app.route('/api/register_rfid', methods=['POST'])
+def register_rfid():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    rfid_uid = data.get('rfid_uid')
+    if not user_id or not rfid_uid:
+        return jsonify({'status': 'error', 'message': 'Missing user_id or rfid_uid'}), 400
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+    user.rfid_uid = rfid_uid
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'RFID registered'})
+
+@app.route('/api/register_fingerprint', methods=['POST'])
+def register_fingerprint():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    fingerprint_id = data.get('fingerprint_id')
+    if not user_id or fingerprint_id is None:
+        return jsonify({'status': 'error', 'message': 'Missing user_id or fingerprint_id'}), 400
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+    user.fingerprint_id = fingerprint_id
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'Fingerprint registered'})
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -187,7 +214,7 @@ def today_access():
 @login_required
 def granted_access():
     # All logs where access was granted
-    granted_logs = AccessLog.query.filter_by(access_granted='Granted').all()
+    granted_logs = AccessLog.query.filter_by(access_granted=True).all()
     return render_template('granted_access.html', logs=granted_logs)
 
 @app.route('/add_user', methods=['GET', 'POST'])
@@ -241,7 +268,7 @@ def edit_user(user_id):
     user = User.query.get_or_404(user_id)
     
     if request.method == 'POST':
-        user.name = request.form['name']
+        user.name = request.form['name']    
         user.email = request.form['email']
         user.access_level = request.form['access_level']
         user.is_active = 'is_active' in request.form
@@ -300,8 +327,11 @@ def check_access():
             access_granted=access_granted,
             rfid_uid=rfid_uid,
             fingerprint_id=fingerprint_id,
-            ip_address=request.remote_addr
+            ip_address=request.remote_addr,
+            door_state="open" if access_granted else "closed"
         )
+        # Add logic here if you need to log the door state update
+        # For now, this line is removed as log_entry is not defined
         db.session.add(log_entry)
         db.session.commit()
         
@@ -376,7 +406,15 @@ def update_door_state():
         
         # You can add logic here to update door state in database
         # or trigger alerts if door is left open too long
-        
+        log_entry = AccessLog(
+        access_method="system",
+        access_granted=True,
+        door_state=door_state,
+        ip_address=request.remote_addr
+)
+        db.session.add(log_entry)
+        db.session.commit()
+
         return jsonify({'message': 'Door state updated'})
         
     except Exception as e:
@@ -417,5 +455,4 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         create_admin()
-    
     app.run(debug=True, host='0.0.0.0', port=5000)
