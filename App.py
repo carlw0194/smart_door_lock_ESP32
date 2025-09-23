@@ -4,8 +4,6 @@
 # Place this after all Flask setup and before main routes
 
 
-
-
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -15,11 +13,11 @@ import secrets
 import json
 from sqlalchemy.sql import func
 
-
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///door_access.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 @app.route('/start_registration/<int:user_id>', methods=['POST'])
 def start_registration_web(user_id):
     import requests
@@ -27,6 +25,7 @@ def start_registration_web(user_id):
     requests.post(backend_url, json={'user_id': user_id})
     flash(f'Registration mode started for user {user_id}')
     return redirect(url_for('users'))
+
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
