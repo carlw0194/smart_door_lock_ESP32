@@ -15,11 +15,18 @@ import hmac
 import os
 from dotenv import load_dotenv
 import ssl
-from mqtt_handler import MQTTHandler
+try:
+    from mqtt_handler import MQTTHandler
+except ImportError:
+    from .mqtt_handler import MQTTHandler
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'security'))
 from anomaly_detection import AnomalyDetector
+try:
+    from security_integration import create_security_routes
+except ImportError:
+    from .security_integration import create_security_routes
 
 # Load environment variables
 load_dotenv()
@@ -708,6 +715,13 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"Warning: Could not initialize anomaly detector: {e}")
             anomaly_detector = None
+        
+        # Initialize enhanced security integration
+        try:
+            security_integration = create_security_routes(app, db, anomaly_detector)
+            print("Enhanced security integration initialized")
+        except Exception as e:
+            print(f"Warning: Could not initialize security integration: {e}")
     
     # SSL Configuration for production
     ssl_context = None
