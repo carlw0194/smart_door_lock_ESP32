@@ -1,0 +1,469 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-shield-alt"></i> Security Dashboard</h2>
+    <div>
+        <button class="btn btn-outline-primary" onclick="refreshDashboard()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+        <span class="badge badge-info ml-2">Last Updated: {{ status.last_updated|default('Never') }}</span>
+    </div>
+</div>
+
+<!-- Security Score Overview -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-2 text-center">
+                        <div class="security-score-circle">
+                            <div class="score-value">{{ status.security_score|default(0) }}</div>
+                            <div class="score-label">Security Score</div>
+                        </div>
+                    </div>
+                    <div class="col-md-10">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="stat-item">
+                                    <i class="fas fa-key text-primary"></i>
+                                    <div class="stat-value">{{ status.total_access_24h|default(0) }}</div>
+                                    <div class="stat-label">Access Attempts (24h)</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-item">
+                                    <i class="fas fa-times-circle text-danger"></i>
+                                    <div class="stat-value">{{ status.failed_access_24h|default(0) }}</div>
+                                    <div class="stat-label">Failed Attempts</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-item">
+                                    <i class="fas fa-check-circle text-success"></i>
+                                    <div class="stat-value">{{ status.success_rate|default(0) }}%</div>
+                                    <div class="stat-label">Success Rate</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-item">
+                                    <i class="fas fa-users text-info"></i>
+                                    <div class="stat-value">{{ status.active_users|default(0) }}</div>
+                                    <div class="stat-label">Active Users</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Anomalies Alert Section -->
+{% if anomalies and anomalies|length > 0 %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    Security Anomalies Detected ({{ anomalies|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Risk Level</th>
+                                <th>Description</th>
+                                <th>Details</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for anomaly in anomalies[:10] %}
+                            <tr class="anomaly-row" data-risk="{{ anomaly.risk_level|default('low')|lower }}">
+                                <td>
+                                    <small>{{ anomaly.timestamp|default('Unknown') }}</small>
+                                </td>
+                                <td>
+                                    <strong>{{ anomaly.user_info|default('Unknown User') }}</strong>
+                                    <br><small class="text-muted">{{ anomaly.method|default('Unknown') }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge badge-{{ 'danger' if anomaly.risk_level == 'CRITICAL' else 'warning' if anomaly.risk_level == 'HIGH' else 'info' if anomaly.risk_level == 'MEDIUM' else 'secondary' }}">
+                                        {{ anomaly.risk_level|default('LOW') }}
+                                    </span>
+                                    <br><small>Score: {{ anomaly.risk_score|default(0) }}/100</small>
+                                </td>
+                                <td>
+                                    {{ anomaly.description|default('No description available') }}
+                                    {% if not anomaly.success %}
+                                    <i class="fas fa-times-circle text-danger ml-1" title="Failed Access"></i>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>
+                                        Duration: {{ anomaly.duration|default(0) }}s<br>
+                                        Location: {{ anomaly.location|default('Unknown') }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="showAnomalyDetails('{{ anomaly.id|default('unknown') }}')">
+                                        <i class="fas fa-eye"></i> Details
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if anomalies|length > 10 %}
+                <div class="text-center mt-3">
+                    <button class="btn btn-outline-secondary" onclick="loadMoreAnomalies()">
+                        <i class="fas fa-chevron-down"></i> Show More Anomalies ({{ anomalies|length - 10 }} remaining)
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle"></i> No security anomalies detected in recent activity.
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Security Trends -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> Access Trends (7 Days)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="accessTrendsChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-shield-alt"></i> Security Events</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="securityEventsChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Security Status -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-heartbeat"></i> Real-time Security Monitoring</h5>
+            </div>
+            <div class="card-body">
+                <div id="realTimeStatus" class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mt-2">Monitoring security status...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Anomaly Details Modal -->
+<div class="modal fade" id="anomalyModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Anomaly Details
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="anomalyDetails">
+                <!-- Anomaly details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="markAnomalyReviewed()">Mark as Reviewed</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.security-score-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    margin: 0 auto;
+}
+
+.score-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+}
+
+.score-label {
+    font-size: 0.8rem;
+    opacity: 0.9;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 1rem;
+}
+
+.stat-item i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #333;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.anomaly-row[data-risk="critical"] {
+    background-color: #f8d7da;
+}
+
+.anomaly-row[data-risk="high"] {
+    background-color: #fff3cd;
+}
+
+.anomaly-row[data-risk="medium"] {
+    background-color: #d1ecf1;
+}
+
+.anomaly-row[data-risk="low"] {
+    background-color: #f8f9fa;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Store anomalies data for JavaScript access
+const anomaliesData = {{ anomalies|tojson|safe }};
+const statusData = {{ status|tojson|safe }};
+
+let accessTrendsChart;
+let securityEventsChart;
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    startRealTimeMonitoring();
+});
+
+function initializeCharts() {
+    // Access Trends Chart
+    const accessCtx = document.getElementById('accessTrendsChart').getContext('2d');
+    accessTrendsChart = new Chart(accessCtx, {
+        type: 'line',
+        data: {
+            labels: [], // Will be populated with dates
+            datasets: [{
+                label: 'Total Access',
+                data: [],
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }, {
+                label: 'Failed Access',
+                data: [],
+                borderColor: 'rgb(255, 99, 132)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Security Events Chart
+    const eventsCtx = document.getElementById('securityEventsChart').getContext('2d');
+    const totalAccess = statusData.total_access_24h || 0;
+    const failedAccess = statusData.failed_access_24h || 0;
+    const normalAccess = Math.max(0, totalAccess - failedAccess);
+    const anomaliesCount = anomaliesData ? anomaliesData.length : 0;
+    
+    securityEventsChart = new Chart(eventsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Normal', 'Anomalies', 'Failed Attempts', 'Off-hours'],
+            datasets: [{
+                data: [normalAccess, anomaliesCount, failedAccess, 0],
+                backgroundColor: [
+                    'rgb(40, 167, 69)',
+                    'rgb(255, 193, 7)',
+                    'rgb(220, 53, 69)',
+                    'rgb(108, 117, 125)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true
+        }
+    });
+
+    // Load trends data
+    loadTrendsData();
+}
+
+function loadTrendsData() {
+    fetch('/api/security/trends?days=7')
+        .then(response => response.json())
+        .then(data => {
+            updateAccessTrendsChart(data.daily_access);
+        })
+        .catch(error => console.error('Error loading trends:', error));
+}
+
+function updateAccessTrendsChart(dailyAccess) {
+    const dates = Object.keys(dailyAccess).sort();
+    const totalData = dates.map(date => dailyAccess[date].total || 0);
+    const failedData = dates.map(date => dailyAccess[date].failed || 0);
+
+    accessTrendsChart.data.labels = dates;
+    accessTrendsChart.data.datasets[0].data = totalData;
+    accessTrendsChart.data.datasets[1].data = failedData;
+    accessTrendsChart.update();
+}
+
+function startRealTimeMonitoring() {
+    updateRealTimeStatus();
+    // Update every 30 seconds
+    setInterval(updateRealTimeStatus, 30000);
+}
+
+function updateRealTimeStatus() {
+    fetch('/api/security/status')
+        .then(response => response.json())
+        .then(data => {
+            const statusDiv = document.getElementById('realTimeStatus');
+            const statusClass = data.security_score >= 80 ? 'success' : data.security_score >= 60 ? 'warning' : 'danger';
+            
+            statusDiv.innerHTML = `
+                <div class="alert alert-${statusClass}">
+                    <h5><i class="fas fa-shield-alt"></i> System Status: ${data.security_score >= 80 ? 'SECURE' : data.security_score >= 60 ? 'MONITORING' : 'ALERT'}</h5>
+                    <p>Security Score: ${data.security_score}/100 | Last Updated: ${data.last_updated}</p>
+                </div>
+            `;
+        })
+        .catch(error => {
+            console.error('Error updating status:', error);
+            document.getElementById('realTimeStatus').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i> Unable to connect to security monitoring
+                </div>
+            `;
+        });
+}
+
+function refreshDashboard() {
+    location.reload();
+}
+
+function showAnomalyDetails(anomalyId) {
+    // Find anomaly details from the current data
+    const anomaly = anomaliesData.find(a => a.id === anomalyId);
+    
+    if (anomaly) {
+        const detailsHtml = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Basic Information</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>Timestamp:</strong></td><td>${anomaly.timestamp || 'Unknown'}</td></tr>
+                        <tr><td><strong>User:</strong></td><td>${anomaly.user_info || 'Unknown'}</td></tr>
+                        <tr><td><strong>Method:</strong></td><td>${anomaly.method || 'Unknown'}</td></tr>
+                        <tr><td><strong>Success:</strong></td><td>${anomaly.success ? 'Yes' : 'No'}</td></tr>
+                        <tr><td><strong>Duration:</strong></td><td>${anomaly.duration || 0}s</td></tr>
+                        <tr><td><strong>Location:</strong></td><td>${anomaly.location || 'Unknown'}</td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>Risk Assessment</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>Risk Level:</strong></td><td><span class="badge badge-${anomaly.risk_level === 'CRITICAL' ? 'danger' : 'warning'}">${anomaly.risk_level || 'LOW'}</span></td></tr>
+                        <tr><td><strong>Risk Score:</strong></td><td>${anomaly.risk_score || 0}/100</td></tr>
+                    </table>
+                    <h6>Description</h6>
+                    <p>${anomaly.description || 'No description available'}</p>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-12">
+                    <h6>Recommendations</h6>
+                    <ul>
+                        ${(anomaly.recommendations || ['No recommendations available']).map(rec => `<li>${rec}</li>`).join('')}
+                    </ul>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('anomalyDetails').innerHTML = detailsHtml;
+        $('#anomalyModal').modal('show');
+    } else {
+        alert('Anomaly details not found');
+    }
+}
+
+function loadMoreAnomalies() {
+    // Implementation for loading more anomalies
+    alert('Loading more anomalies... (Feature to be implemented)');
+}
+
+function markAnomalyReviewed() {
+    // Implementation for marking anomaly as reviewed
+    alert('Anomaly marked as reviewed (Feature to be implemented)');
+    $('#anomalyModal').modal('hide');
+}
+</script>
+{% endblock %}
