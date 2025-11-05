@@ -65,7 +65,6 @@ class AccessLog(db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return Admin.query.get(int(user_id))
-
 @app.route('/api/start_registration', methods=['POST'])
 def start_registration():
     try:
