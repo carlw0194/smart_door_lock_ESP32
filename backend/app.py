@@ -363,22 +363,33 @@ def check_access():
         elif access_method == 'fingerprint' and not fingerprint_id:
             return jsonify({'error': 'Fingerprint ID required for fingerprint method'}), 400
         
+        # Find the user record even if the account is inactive so we can record last_access for audit
         user = None
+        user_any = None
         access_granted = False
-        
+
         if access_method == 'rfid' and rfid_uid:
-            user = User.query.filter_by(rfid_uid=rfid_uid, is_active=True).first()
+            user_any = User.query.filter_by(rfid_uid=rfid_uid).first()
+            # Only grant access if user exists and is active
+            user = user_any if (user_any and user_any.is_active) else None
         elif access_method == 'fingerprint' and fingerprint_id:
-            user = User.query.filter_by(fingerprint_id=fingerprint_id, is_active=True).first()
-        
+            user_any = User.query.filter_by(fingerprint_id=fingerprint_id).first()
+            user = user_any if (user_any and user_any.is_active) else None
+
+        # Update last_access for the user record if it exists (audit every attempt)
+        if user_any:
+            try:
+                user_any.last_access = datetime.utcnow()
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
         if user:
             access_granted = True
-            user.last_access = datetime.utcnow()
-            db.session.commit()
         
-        # Log the access attempt
+        # Log the access attempt (use the actual user record if present even when inactive)
         log_entry = AccessLog(
-            user_id=user.id if user else None,
+            user_id=user_any.id if user_any else None,
             access_method=access_method,
             access_granted=access_granted,
             rfid_uid=rfid_uid,
@@ -403,8 +414,8 @@ def check_access():
         
         response = {
             'access_granted': access_granted,
-            'user_name': user.name if user else None,
-            'user_id': user.id if user else None,
+            'user_name': (user.name if user else (user_any.name if user_any else None)),
+            'user_id': (user.id if user else (user_any.id if user_any else None)),
             'message': 'Access granted' if access_granted else 'Access denied',
             'timestamp': datetime.utcnow().isoformat()
         }
@@ -489,6 +500,76 @@ def register_fingerprint():
         
     except Exception as e:
         log_security_event('api_error', f'Fingerprint registration error: {str(e)}')
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# Simple registration state used to coordinate UI -> ESP32 registration flow
+# UI (admin) triggers /api/start_registration (login_required). The ESP32 polls
+# /api/poll_registration (require_api_key) to know when to enter registration mode.
+registration_state = {
+    'register': False,
+    'user_id': None
+}
+
+
+@app.route('/api/start_registration', methods=['POST'])
+def start_registration():
+    try:
+        # Allow start_registration to be triggered either by a logged-in admin OR by a valid API key
+        authorized = False
+        if current_user and getattr(current_user, 'is_authenticated', False):
+            authorized = True
+            actor = f'admin:{current_user.username}' if getattr(current_user, 'username', None) else 'admin'
+        else:
+            api_key = request.headers.get('X-API-Key') or request.args.get('api_key')
+            if api_key and verify_api_key(api_key):
+                authorized = True
+                actor = f'api_key:{api_key[:8]}...'
+
+        if not authorized:
+            log_security_event('api_access_denied', 'Unauthorized start_registration attempt')
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        data = request.get_json() or {}
+        user_id = data.get('user_id') or request.form.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'user_id required'}), 400
+
+        # set the registration state
+        registration_state['register'] = True
+        registration_state['user_id'] = int(user_id)
+        log_security_event('registration_started', f'User: {user_id} by {actor}')
+        return jsonify({'message': 'Registration started', 'user_id': int(user_id)})
+    except Exception as e:
+        log_security_event('api_error', f'start_registration error: {str(e)}')
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/poll_registration', methods=['GET'])
+@require_api_key
+def poll_registration():
+    """Polled by the ESP32 to learn if it should enter registration mode."""
+    try:
+        # Return the current registration state (do not clear here; ESP32 will call clear when done)
+        return jsonify({
+            'register': bool(registration_state.get('register')),
+            'user_id': int(registration_state.get('user_id')) if registration_state.get('user_id') else None
+        })
+    except Exception as e:
+        log_security_event('api_error', f'poll_registration error: {str(e)}')
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/clear_registration', methods=['POST'])
+@require_api_key
+def clear_registration():
+    """Called by ESP32 to clear registration state after handling enrollment."""
+    try:
+        registration_state['register'] = False
+        registration_state['user_id'] = None
+        return jsonify({'message': 'Registration cleared'})
+    except Exception as e:
+        log_security_event('api_error', f'clear_registration error: {str(e)}')
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/door_state', methods=['POST'])
