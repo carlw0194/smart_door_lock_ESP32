@@ -84,7 +84,7 @@ class MQTTHandler:
         
     def handle_access_request(self, payload):
         """Handle access request from ESP32"""
-        from app import User, AccessLog, log_security_event
+        from backend.app2 import User, AccessLog, log_security_event
         
         method = payload.get('method')
         rfid_uid = payload.get('rfid_uid')
@@ -134,7 +134,7 @@ class MQTTHandler:
             
     def handle_door_state(self, payload):
         """Handle door state updates from ESP32"""
-        from app import log_security_event
+        from backend.app2 import log_security_event
         
         state = payload.get('state')
         device_id = payload.get('device_id', 'unknown')
@@ -183,7 +183,7 @@ class MQTTHandler:
         
     def sync_users_to_esp32(self):
         """Sync user data to ESP32 devices"""
-        from app import User
+        from backend.app2 import User
         
         users = User.query.filter_by(is_active=True).all()
         user_data = []
